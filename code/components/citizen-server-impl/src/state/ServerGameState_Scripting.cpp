@@ -1729,13 +1729,20 @@ static void Init()
 
 	fx::ScriptEngine::RegisterNativeHandler("NETWORK_SET_ENTITY_OWNER", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
+		// get the current resource manager
+		auto resourceManager = fx::ResourceManager::GetCurrent();
+
+		// get the owning server instance
+		auto instance = resourceManager->GetComponent<fx::ServerInstanceBaseRef>()->Get();
+
+		auto clientRegistry = instance->GetComponent<fx::ClientRegistry>();
+
 		auto playerId = context.GetArgument<int>(1);
 		bool preventAutoMigration = context.GetArgumentCount() > 2 ? context.GetArgument<bool>(2) : false;
 
 		// TODO: Maybe check if the entity exist here?
 		entity->ownershipLocked = preventAutoMigration;
 
-		auto clientRegistry = fx::ServerInstanceBaseRef::Get()->GetComponent<fx::ClientRegistry>();
 		auto client = clientRegistry->GetClientByNetID(playerId);
 
 		if (!client)
@@ -1744,8 +1751,8 @@ static void Init()
 		}
 
 		// Reassign entity to the new owner
-		auto sgs = fx::ServerInstanceBaseRef::Get()->GetComponent<fx::ServerGameState>();
-		sgs->ReassignEntity(entity->handle, client);
+		auto gameState = instance->GetComponent<fx::ServerGameState>();
+		gameState->ReassignEntity(entity->handle, client);
 
 		return true;
 	}));
