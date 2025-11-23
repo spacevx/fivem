@@ -1727,6 +1727,29 @@ static void Init()
 		return true;
 	}));
 
+	fx::ScriptEngine::RegisterNativeHandler("NETWORK_SET_ENTITY_OWNER", makeEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
+	{
+		auto playerId = context.GetArgument<int>(1);
+		bool preventAutoMigration = context.GetArgumentCount() > 2 ? context.GetArgument<bool>(2) : false;
+
+		// TODO: Maybe check if the entity exist here?
+		entity->ownershipLocked = preventAutoMigration;
+
+		auto clientRegistry = fx::ServerInstanceBaseRef::Get()->GetComponent<fx::ClientRegistry>();
+		auto client = clientRegistry->GetClientByNetID(playerId);
+
+		if (!client)
+		{
+			return false;
+		}
+
+		// Reassign entity to the new owner
+		auto sgs = fx::ServerInstanceBaseRef::Get()->GetComponent<fx::ServerGameState>();
+		sgs->ReassignEntity(entity->handle, client);
+
+		return true;
+	}));
+
 	fx::ScriptEngine::RegisterNativeHandler("GET_PLAYER_INVINCIBLE", MakePlayerEntityFunction([](fx::ScriptContext& context, const fx::sync::SyncEntityPtr& entity)
 	{
 		auto pn = entity->syncTree->GetPlayerGameState();

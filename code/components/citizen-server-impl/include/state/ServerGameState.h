@@ -916,6 +916,7 @@ struct SyncEntityState
 	bool passedFilter = false;
 	bool wantsReassign = false;
 	bool firstOwnerDropped = false;
+	bool ownershipLocked = false;
 	EntityOrphanMode orphanMode = EntityOrphanMode::DeleteWhenNotRelevant;
 #ifdef STATE_FIVE
 	bool allowRemoteSyncedScenes = false;

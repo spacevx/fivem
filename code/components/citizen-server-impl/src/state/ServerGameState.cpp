@@ -1502,6 +1502,7 @@ void ServerGameState::Tick(fx::ServerInstanceBase* instance)
 						// if this entity is owned by a server script, reassign to nobody and wait until someone else owns it
 						if (entity->ShouldServerKeepEntity())
 						{
+							entity->ownershipLocked = false;
 							ReassignEntity(entity->handle, {});
 						}
 
@@ -2950,11 +2951,24 @@ void ServerGameState::HandleClientDrop(const fx::ClientSharedPtr& client, uint16
 				continue;
 			}
 
+			// Clear ownership lock once the owner is gone (to allow the reassignement of the entity)
+			if (entity->ownershipLocked)
+			{
+				entity->ownershipLocked = false;
+			}
+
 			if (!MoveEntityToCandidate(entity, client))
 			{
-				if (entity->IsOwnedByClientScript() && !entity->firstOwnerDropped)
+				if (entity->ShouldServerKeepEntity())
 				{
-					ReassignEntity(entity->handle, firstOwner);
+					if (entity->IsOwnedByClientScript() && !entity->firstOwnerDropped)
+					{
+						ReassignEntity(entity->handle, firstOwner);
+					}
+					else
+					{
+						ReassignEntity(entity->handle, {});
+					}
 				}
 				else
 				{
