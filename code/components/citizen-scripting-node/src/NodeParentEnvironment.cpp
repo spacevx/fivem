@@ -14,8 +14,55 @@
 #include "shared/RuntimeHelpers.h"
 #include "UvLoopManager.h"
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 extern int g_argc;
 extern char** g_argv;
+
+#ifndef _WIN32
+namespace
+{
+struct sigaction g_previousSegvAction;
+
+void ForwardToPreviousSegvHandler(int signal, siginfo_t* info, void* ucontext)
+{
+	if (g_previousSegvAction.sa_flags & SA_SIGINFO)
+	{
+		g_previousSegvAction.sa_sigaction(signal, info, ucontext);
+	}
+	else
+	{
+		g_previousSegvAction.sa_handler(signal);
+	}
+}
+
+bool IsDefaultDisposition(const struct sigaction& action)
+{
+	return !(action.sa_flags & SA_SIGINFO) && (action.sa_handler == SIG_DFL || action.sa_handler == SIG_IGN);
+}
+
+void ChainPreviousSegvHandler(const struct sigaction& previous)
+{
+	if (IsDefaultDisposition(previous))
+	{
+		return;
+	}
+
+	struct sigaction current = {};
+	sigaction(SIGSEGV, nullptr, &current);
+
+	if (current.sa_sigaction == previous.sa_sigaction)
+	{
+		return;
+	}
+
+	g_previousSegvAction = previous;
+	node::RegisterSignalHandler(SIGSEGV, ForwardToPreviousSegvHandler);
+}
+}
+#endif
 
 namespace fx::nodejs
 {
@@ -35,8 +82,17 @@ result_t NodeParentEnvironment::Initialize()
 		"--experimental-sqlite"
 	};
 
+#ifndef _WIN32
+	struct sigaction previousSegvAction = {};
+	sigaction(SIGSEGV, nullptr, &previousSegvAction);
+#endif
+
 	const auto result = node::InitializeOncePerProcess(args);
-	
+
+#ifndef _WIN32
+	ChainPreviousSegvHandler(previousSegvAction);
+#endif
+
 	if (result->errors().size())
 	{
 		for (const auto& error : result->errors())
